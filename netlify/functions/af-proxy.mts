@@ -1,3 +1,4 @@
+
 import type { Config } from "@netlify/functions";
 
 const CORS = {
@@ -7,7 +8,6 @@ const CORS = {
 };
 
 export default async (req: Request) => {
-  // Always handle OPTIONS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: CORS });
   }
@@ -22,15 +22,24 @@ export default async (req: Request) => {
     });
   }
 
-  const endpoint = url.searchParams.get("endpoint") || "work_order_list.json";
-  const afUrl = new URL(`https://twobliving.appfolio.com/api/v1/reports/${endpoint}`);
-  
-  url.searchParams.forEach((val, key) => {
-    if (key !== "endpoint") afUrl.searchParams.set(key, val);
-  });
+  // Support next_url parameter for pagination
+  const nextUrl = url.searchParams.get("next_url");
+  let afUrl: string;
+
+  if (nextUrl) {
+    // Use the full AppFolio next_page_url directly
+    afUrl = nextUrl;
+  } else {
+    const endpoint = url.searchParams.get("endpoint") || "work_order_list.json";
+    const afBase = new URL(`https://twobliving.appfolio.com/api/v1/reports/${endpoint}`);
+    url.searchParams.forEach((val, key) => {
+      if (key !== "endpoint" && key !== "next_url") afBase.searchParams.set(key, val);
+    });
+    afUrl = afBase.toString();
+  }
 
   try {
-    const afRes = await fetch(afUrl.toString(), {
+    const afRes = await fetch(afUrl, {
       headers: {
         "Authorization": "Basic " + btoa(`${clientId}:${clientSecret}`),
         "Accept": "application/json",
